@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Relatório de Testes - CurtaON</title>
+    <style>
+      /* === ESTILO PERSONALIZADO CURTAON === */
+      body {
+        font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 13px;
+        background-color: #0f0f0f;
+        color: #e0e0e0;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* === HEADER === */
+      .logo-header {
+        background-color: #0f0f0f;
+        padding: 20px 0;
+        text-align: center;
+        border-bottom: 2px solid #f26522;
+      }
+
+      .logo-img {
+        max-height: 80px;
+        display: block;
+        margin: 0 auto;
+      }
+
+      .report-header {
+        text-align: center;
+        padding: 20px;
+        border-bottom: 1px solid #333;
+      }
+
+      .report-header h1 {
+        color: #f26522;
+        margin-bottom: 10px;
+      }
+
+      .highlight {
+        color: #f26522;
+        font-weight: bold;
+      }
+
+      /* === MENSAGENS DE RESULTADO === */
+      .test-result {
+        font-weight: bold;
+        text-transform: uppercase;
+        text-align: center;
+        font-size: 14px;
+      }
+
+      .passed-message {
+        color: #00ff00;
+      }
+
+      .failed-message {
+        color: #ff0000;
+      }
+
+      /* === TABELA DE RESULTADOS === */
+      #results-table {
+        width: 95%;
+        margin: 20px auto;
+        border-collapse: collapse;
+        background-color: #1c1c1c;
+        border: 1px solid #333;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+      }
+
+      #results-table th, #results-table td {
+        border: 1px solid #f26522;
+        padding: 10px;
+        text-align: left;
+        color: #ddd;
+      }
+
+      #results-table th {
+        background-color: #1a1a1a;
+        color: #f26522;
+      }
+
+      #results-table .col-result {
+        width: 120px;
+        text-align: center;
+      }
+
+      /* === BARRA DE CONTROLE === */
+      .controls, .filters, .collapse {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 30px;
+        color: #ccc;
+        background-color: #121212;
+        border-bottom: 1px solid #333;
+      }
+
+      .filters button,
+      .collapse button {
+        background: none;
+        border: none;
+        color: #f26522;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .filters button:hover,
+      .collapse button:hover {
+        text-decoration: underline;
+        color: #ff7d3a;
+      }
+
+      /* === LOGS === */
+      .logwrapper {
+        background-color: #1c1c1c;
+        color: #eee;
+        font-family: monospace;
+        padding: 10px;
+        border: 1px solid #f26522;
+        max-height: 250px;
+        overflow-y: scroll;
+        margin: 20px auto;
+        width: 90%;
+      }
+
+      .error {
+        color: #ff5252;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="logo-header">
+      <img src="assets/logo.png" alt="Logo CurtaON" class="logo-img">
+    </header>
+    <div class="report-header">
+      <h1>Relatório de Testes Automatizados</h1>
+      <p class="report-info">Report generated on <span class="highlight">{{ report.start_time }}</span> by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v{{ plugin.version }}</p>
+    </div>
+    
+    <div id="environment-header">
+      <h2>Environment</h2>
+    </div>
+    <table id="environment"></table>
+    
+    <!-- TEMPLATES -->
+    <template id="template_environment_row">
+      <tr>
+        <td></td>
+        <td></td>
+      </tr>
+    </template>
+    
+    <template id="template_results-table__body--empty">
+      <tbody class="results-table-row">
+        <tr id="not-found-message">
+          <td colspan="4">No results found. Check the filters.</th>
+        </tr>
+    </template>
+    
+    <template id="template_results-table__tbody">
+      <tbody class="results-table-row">
+        <tr class="collapsible">
+          <td class="col-result"></td>
+          <td class="col-testId"></td>
+          <td class="col-duration"></td>
+          <td class="col-links"></td>
+        </tr>
+        <tr class="extras-row">
+          <td class="extra" colspan="4">
+            <div class="extraHTML"></div>
+            <div class="logwrapper">
+              <div class="logexpander"></div>
+              <div class="log"></div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </template>
+    <!-- END TEMPLATES -->
+    
+    <div class="summary">
+      <div class="summary__data">
+        <h2>Summary</h2>
+        <div class="additional-summary prefix"></div>
+        <p class="run-count">{{ results|length }} tests took <span class="highlight">{{ duration }}</span>.</p>
+        
+        <div class="controls">
+          <div class="filters">
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="failed" disabled/>
+            <span class="failed">0 Failed,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="passed" />
+            <span class="passed">{{ results|length }} Passed,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="skipped" disabled/>
+            <span class="skipped">0 Skipped,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="xfailed" disabled/>
+            <span class="xfailed">0 Expected failures,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="xpassed" disabled/>
+            <span class="xpassed">0 Unexpected passes,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="error" disabled/>
+            <span class="error">0 Errors,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="rerun" disabled/>
+            <span class="rerun">0 Reruns</span>
+          </div>
+          <div class="collapse">
+            <button id="show_all_details">Show all details</button>&nbsp;/&nbsp;<button id="hide_all_details">Hide all details</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable" data-column-type="result">Result</th>
+          <th class="sortable" data-column-type="testId">Test</th>
+          <th class="sortable" data-column-type="duration">Duration</th>
+          <th>Links</th>
+        </tr>
+      </thead>
+    </table>
+    
+    <footer>
+      <div id="data-container" data-json="{{ data }}"></div>
+      <script>
+        // (O script original permanece aqui)
+      </script>
+    </footer>
+  </body>
+</html>
