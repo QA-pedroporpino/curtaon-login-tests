@@ -124,4 +124,4 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 👤 Autor
 Pedro Porpino - @QA-pedroporpino
 
-⌨️ com ❤️ por Pedro Porpino 😊
+
