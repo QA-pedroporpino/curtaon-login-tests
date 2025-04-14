@@ -121,11 +121,7 @@ Os relatórios são gerados automaticamente na pasta `reports/` após cada execu
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
-## 👤 Autor
+👤 Autor
+Pedro Porpino - @QA-pedroporpino
 
-Seu Nome - [@seu-usuario](https://github.com/seu-usuario)
-
----
-
-⌨️ com ❤️ por [Seu Nome](https://github.com/seu-usuario) 😊
->>>>>>> 524422f (subindo os testes de login do CurtaON)
+⌨️ com ❤️ por Pedro Porpino 😊
