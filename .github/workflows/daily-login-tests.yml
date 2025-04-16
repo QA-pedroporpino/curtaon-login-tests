@@ -40,7 +40,7 @@ env:
   # Configurações do Chrome
   DISPLAY: ":99"
   CHROME_BIN: "/usr/bin/google-chrome"
-  # Diretórios do projeto - Usando paths relativos para portabilidade
+  # Diretórios do projeto
   PROJECT_ROOT: "."
   TESTS_DIR: "tests/test_cases"
   ARTIFACTS_DIR: "artifacts"
@@ -55,7 +55,8 @@ env:
 jobs:
   test:
     name: Executar Suite de Testes
-    runs-on: ubuntu-latest
+    # Usando Ubuntu 22.04 para garantir compatibilidade com libgconf-2-4
+    runs-on: ubuntu-22.04
 
     steps:
       # ==== SETUP DO AMBIENTE ====
@@ -74,20 +75,9 @@ jobs:
             requirements.txt
             setup.py
 
-      # ==== CACHE DO CHROME ====
-      - name: Cache do Chrome e ChromeDriver
-        uses: actions/cache@v4
-        id: chrome-cache
-        with:
-          path: |
-            /usr/bin/google-chrome
-            /usr/local/bin/chromedriver
-          key: ${{ runner.os }}-chrome-${{ env.CACHE_VERSION }}
-
       # ==== SETUP DO CHROME E XVFB ====
       - name: Setup Chrome e ambiente gráfico
         id: setup-chrome
-        if: steps.chrome-cache.outputs.cache-hit != 'true'
         run: |
           set -eo pipefail
 
@@ -197,11 +187,6 @@ jobs:
       # ==== PREPARAÇÃO DOS DIRETÓRIOS ====
       - name: Preparar diretórios
         run: |
-          echo "::group::📁 Verificando estrutura do projeto"
-          echo "Estrutura de diretórios antes da criação:"
-          tree . || ls -R .
-          echo "::endgroup::"
-
           echo "::group::📁 Criando diretórios para artefatos"
           # Cria diretórios com -p para não falhar se já existirem
           mkdir -p "${ARTIFACTS_DIR}"/{reports,screenshots,logs}
@@ -211,9 +196,6 @@ jobs:
 
           echo "Estrutura de diretórios após criação:"
           tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
-
-          echo "Verificando diretório de testes:"
-          tree "${TESTS_DIR}" || ls -R "${TESTS_DIR}"
           echo "::endgroup::"
 
       # ==== EXECUÇÃO DOS TESTES ====
@@ -298,6 +280,15 @@ jobs:
         with:
           files: "${{ env.REPORTS_DIR }}/junit.xml"
           comment_mode: off
+
+      # ==== DEBUG FINAL ====
+      - name: Debug final
+        if: always()
+        run: |
+          echo "::group::🔍 Debug final"
+          echo "Estrutura completa do diretório:"
+          ls -R
+          echo "::endgroup::"
 
       # ==== CLEANUP ====
       - name: Cleanup
