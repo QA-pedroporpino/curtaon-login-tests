@@ -198,12 +198,21 @@ jobs:
           tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
           echo "::endgroup::"
 
+      # ==== VERIFICAÇÃO DOS ARQUIVOS DE TESTE ====
+      - name: Verificar arquivos de teste
+        run: |
+          echo "::group::🔍 Verificando arquivos de teste"
+          echo "Diretório atual: $(pwd)"
+          echo "Conteúdo do diretório de testes:"
+          ls -R "${TESTS_DIR}"
+          echo "::endgroup::"
+
       # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
         id: run-tests
         timeout-minutes: 30 # Timeout de segurança
         env:
-          PYTHONPATH: ${{ github.workspace }}/src
+          PYTHONPATH: ${{ github.workspace }}
           PYTEST_ADDOPTS: "--color=yes"
           TEST_FILTER: ${{ github.event.inputs.test_filter }}
         run: |
@@ -214,7 +223,6 @@ jobs:
           echo "PYTHONPATH: ${PYTHONPATH}"
           echo "Diretório de testes: ${TESTS_DIR}"
           echo "Filtro de testes: ${TEST_FILTER}"
-          ls -la "${TESTS_DIR}"
           echo "::endgroup::"
 
           echo "::group::🧪 Executando suite de testes"
