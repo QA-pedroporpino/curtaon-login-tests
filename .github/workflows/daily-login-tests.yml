@@ -1,107 +1,156 @@
+# =================================================================
+# Workflow de Testes Automatizados - CurtaON
+# Mantido por: Time de QA
+# Última atualização: Fevereiro 2024
+# =================================================================
+
 name: Testes de Login Diários
 
-# Definição de quando o workflow será executado
+# Definição dos triggers do workflow
 on:
+  # Execução agendada - 3h UTC (meia-noite horário de Brasília)
   schedule:
-    # Executa todos os dias às 3h UTC (meia-noite horário de Brasília)
     - cron: "0 3 * * *"
-  # Permite execução manual através da interface do GitHub
+  # Permite execução manual via UI
   workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: "Habilitar modo debug com logs detalhados"
+        required: false
+        default: false
+        type: boolean
 
-# Define as permissões necessárias para o workflow
+# Configurações globais e permissões
 permissions:
-  contents: read # Permissão para ler o código
-  actions: write # Permissão para criar artefatos
+  contents: read
+  actions: write
+  checks: write # Necessário para publicar resultados de teste
 
+# Variáveis de ambiente globais
 env:
   PYTHON_VERSION: "3.11"
-  CHROME_VERSION: "121.0.6167.85" # Versão específica do Chrome para maior estabilidade
-  DISPLAY: ":99" # Display virtual para o Chrome
+  PYTHONUNBUFFERED: "1" # Força output sem buffer
+  FORCE_COLOR: "1" # Força saída colorida
+  DEBIAN_FRONTEND: "noninteractive"
+  # Configurações do Chrome
+  DISPLAY: ":99"
+  CHROME_BIN: "/usr/bin/google-chrome"
+  # Diretórios de artefatos
+  ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
+  REPORT_DIR: "${{ github.workspace }}/artifacts/reports"
+  SCREENSHOT_DIR: "${{ github.workspace }}/artifacts/screenshots"
+  LOG_DIR: "${{ github.workspace }}/artifacts/logs"
 
 jobs:
   test:
-    name: Executar Testes Automatizados
+    name: Executar Suite de Testes
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout do código
+      # ==== SETUP DO AMBIENTE ====
       - name: Checkout do código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Checkout completo para histórico
+          fetch-depth: 0
 
-      # Step 2: Configuração do Python
-      - name: Configurar Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v4
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        id: setup-python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip" # Habilita cache de dependências
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            setup.py
 
-      # Step 3: Configuração do ambiente virtual do Python
-      - name: Configurar ambiente virtual
+      # ==== SETUP DO CHROME E XVFB ====
+      - name: Setup Chrome e ambiente gráfico
+        id: setup-chrome
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+          set -eo pipefail
 
-      # Step 4: Instalação e configuração do Chrome e ChromeDriver
-      - name: Instalar Chrome e ChromeDriver
-        run: |
-          # Instala dependências necessárias
-          sudo apt-get update
-          sudo apt-get install -y xvfb wget unzip
+          echo "::group::🔧 Instalando dependências do sistema"
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            libnss3 \
+            libgconf-2-4 \
+            libfontconfig1
+          echo "::endgroup::"
 
-          # Remove versões antigas do Chrome se existirem
-          sudo apt-get remove google-chrome-stable || true
-          sudo rm -rf /usr/bin/google-chrome* || true
+          echo "::group::🌐 Instalando Google Chrome"
+          # Remove versão antiga se existir
+          sudo apt-get remove -y google-chrome-stable || true
 
-          # Instala o Chrome
+          # Baixa e instala a versão mais recente do Chrome
           wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg -i google-chrome-stable_current_amd64.deb || true
-          sudo apt-get install -f -y
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
+          rm google-chrome-stable_current_amd64.deb
 
-          # Instala o ChromeDriver compatível
-          CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
-          wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}.0.6261.94/linux64/chromedriver-linux64.zip"
+          # Obtém a versão exata do Chrome instalado
+          CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3)
+          CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d '.' -f 1)
+          echo "chrome_version=${CHROME_VERSION}" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+          echo "::group::🔧 Instalando ChromeDriver"
+          # Download e instalação do ChromeDriver compatível
+          wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip"
           unzip -q chromedriver-linux64.zip
           sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
+          rm -rf chromedriver-linux64*
+          echo "::endgroup::"
 
-          # Inicia o Xvfb (X Virtual Framebuffer)
+          echo "::group::🖥️ Configurando Display Virtual"
+          # Inicia Xvfb em background
           Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          echo "::endgroup::"
 
-          # Verifica as versões instaladas
-          echo "Chrome version:"
-          google-chrome --version
-          echo "ChromeDriver version:"
-          chromedriver --version
+          echo "::group::✅ Verificando versões"
+          echo "Chrome version: $(google-chrome --version)"
+          echo "ChromeDriver version: $(chromedriver --version)"
+          echo "::endgroup::"
 
-      # Step 5: Instalação das dependências Python
-      - name: Instalar dependências
+      # ==== SETUP PYTHON E DEPENDÊNCIAS ====
+      - name: Setup ambiente Python
+        id: setup-env
         run: |
+          set -eo pipefail
+
+          echo "::group::🐍 Criando ambiente virtual"
+          python -m venv .venv
+          source .venv/bin/activate
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+          echo "::endgroup::"
+
+          echo "::group::📦 Instalando dependências"
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-html pytest-cov pytest-xdist
+          pip install pytest-html pytest-cov pytest-xdist pytest-timeout
           pip install -e .
+          echo "::endgroup::"
 
-      # Step 6: Preparação do ambiente de testes
-      - name: Criar diretórios para artefatos
+      # ==== PREPARAÇÃO DOS DIRETÓRIOS ====
+      - name: Preparar diretórios
         run: |
-          mkdir -p screenshots
-          mkdir -p reports
-          mkdir -p logs
-          chmod -R 777 screenshots reports logs
+          mkdir -p "$ARTIFACT_DIR"/{reports,screenshots,logs}
+          chmod -R 777 "$ARTIFACT_DIR"
 
-      # Step 7: Execução dos testes
+      # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
+        id: run-tests
+        timeout-minutes: 30 # Timeout de segurança
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-          SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
-          LOG_DIR: ${{ github.workspace }}/logs
+          # Adicione outras variáveis de ambiente necessárias aqui
+          # TEST_BASE_URL: ${{ secrets.TEST_BASE_URL }}
         run: |
-          # Executa os testes com retry em caso de falha
+          set -eo pipefail
+
+          echo "::group::🧪 Executando suite de testes"
           pytest tests/ \
-            --html=reports/report.html \
+            --html="${REPORT_DIR}/report.html" \
             --self-contained-html \
             -v \
             --reruns 2 \
@@ -109,26 +158,42 @@ jobs:
             -n auto \
             --dist loadfile \
             --cov=src \
-            --cov-report=html:reports/coverage_report \
+            --cov-report=html:"${REPORT_DIR}/coverage" \
+            --cov-report=xml:"${REPORT_DIR}/coverage.xml" \
             --log-cli-level=INFO \
-            --capture=tee-sys
+            --capture=tee-sys \
+            --timeout=300 \
+            --junitxml="${REPORT_DIR}/junit.xml" \
+            | tee "${LOG_DIR}/pytest.log"
+          echo "::endgroup::"
 
-      # Step 8: Publicação dos artefatos
-      - name: Publicar relatórios e logs
+      # ==== PUBLICAÇÃO DE ARTEFATOS ====
+      - name: Publicar artefatos
         if: always() # Executa mesmo se os testes falharem
         uses: actions/upload-artifact@v4
         with:
-          name: relatorios-e-logs
+          name: test-artifacts
           path: |
-            reports/
-            screenshots/
-            logs/
+            ${{ env.ARTIFACT_DIR }}
           retention-days: 14
+          if-no-files-found: error
 
-      # Step 9: Limpeza do ambiente (cleanup)
+      # ==== PUBLICAÇÃO DE RESULTADOS ====
+      - name: Publicar resultados dos testes
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: "${{ env.REPORT_DIR }}/junit.xml"
+          comment_mode: off
+
+      # ==== CLEANUP ====
       - name: Cleanup
         if: always()
         run: |
+          set -eo pipefail
+
+          echo "::group::🧹 Limpando ambiente"
           pkill Xvfb || true
-          sudo apt-get remove -y google-chrome-stable
-          sudo apt-get autoremove -y
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          echo "::endgroup::"
