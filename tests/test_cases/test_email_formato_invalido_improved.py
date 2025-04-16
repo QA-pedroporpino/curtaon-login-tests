@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 import logging
 import os
 import datetime
-from utils.screenshot_manager import ScreenshotManager
+from src.utils.screenshot_manager import ScreenshotManager
 
 # Configurações básicas
 class Config:

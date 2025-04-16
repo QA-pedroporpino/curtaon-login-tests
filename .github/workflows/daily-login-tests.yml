@@ -37,6 +37,7 @@ env:
   PYTHONUNBUFFERED: "1" # Força output sem buffer
   FORCE_COLOR: "1" # Força saída colorida
   DEBIAN_FRONTEND: "noninteractive"
+  PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/src" # Adiciona src ao PYTHONPATH
   # Configurações do Chrome
   DISPLAY: ":99"
   CHROME_BIN: "/usr/bin/google-chrome"
@@ -75,6 +76,16 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             setup.py
+
+      - name: Criar diretórios necessários
+        run: |
+          mkdir -p ${{ env.ARTIFACTS_DIR }}
+          mkdir -p ${{ env.REPORTS_DIR }}
+          mkdir -p ${{ env.HTML_DIR }}
+          mkdir -p ${{ env.SCREENSHOTS_DIR }}
+          mkdir -p ${{ env.LOGS_DIR }}
+          mkdir -p logs
+          mkdir -p screenshots
 
       # ==== SETUP DO CHROME E XVFB ====
       - name: Setup Chrome e ambiente gráfico
@@ -221,69 +232,18 @@ jobs:
 
       # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
-        id: run-tests
-        timeout-minutes: 30 # Timeout de segurança
         run: |
-          set -eo pipefail
+          # Inicia o Xvfb em background
+          /usr/bin/Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+          export DISPLAY=:99
 
-          echo "::group::🧪 Preparando execução dos testes"
-          # Ativa o ambiente virtual e configura PYTHONPATH
-          source .venv/bin/activate
-          export PYTHONPATH="${GITHUB_WORKSPACE}"
-
-          echo "Diretório atual: $(pwd)"
-          echo "PYTHONPATH: ${PYTHONPATH}"
-          echo "Diretório de testes: ${TESTS_DIR}"
-          echo "Filtro de testes: ${TEST_FILTER}"
-          echo "::endgroup::"
-
-          echo "::group::🧪 Executando suite de testes"
-          # Executa pytest com tratamento de erro
-          pytest "${TESTS_DIR}"/ \
-            ${TEST_FILTER:+ -k "${TEST_FILTER}"} \
-            --html="${HTML_DIR}/report.html" \
+          # Executa os testes
+          python -m pytest ${{ env.TESTS_DIR }} \
+            --junitxml=${{ env.REPORTS_DIR }}/junit.xml \
+            --html=${{ env.HTML_DIR }}/report.html \
             --self-contained-html \
-            --junitxml="${REPORTS_DIR}/junit.xml" \
             -v \
-            --capture=tee-sys \
-            --log-cli-level=DEBUG \
-            | tee "${LOGS_DIR}/pytest.log" || test_exit_code=$?
-
-          echo "::group::📊 Verificando artefatos gerados"
-          echo "Conteúdo do diretório de relatórios:"
-          ls -la "${REPORTS_DIR}"
-          echo "Conteúdo do diretório HTML:"
-          ls -la "${HTML_DIR}"
-
-          # Verifica se os relatórios foram gerados
-          for report in "junit.xml"; do
-            if [ -f "${REPORTS_DIR}/${report}" ]; then
-              echo "✅ ${report} gerado com sucesso"
-              echo "Tamanho: $(stat -c %s "${REPORTS_DIR}/${report}") bytes"
-            else
-              echo "❌ ${report} não encontrado!"
-            fi
-          done
-
-          for report in "report.html"; do
-            if [ -f "${HTML_DIR}/${report}" ]; then
-              echo "✅ ${report} gerado com sucesso"
-              echo "Tamanho: $(stat -c %s "${HTML_DIR}/${report}") bytes"
-            else
-              echo "❌ ${report} não encontrado!"
-            fi
-          done
-
-          # Verifica estrutura completa
-          echo "Estrutura final de artefatos:"
-          tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
-          echo "::endgroup::"
-
-          # Propaga o código de saída do pytest se houver falha
-          if [ -n "$test_exit_code" ]; then
-            echo "Testes falharam com código $test_exit_code"
-            exit $test_exit_code
-          fi
+            ${{ github.event.inputs.test_filter && format('--filter={0}', github.event.inputs.test_filter) || '' }}
 
       # ==== PUBLICAÇÃO DE ARTEFATOS ====
       - name: Publicar artefatos

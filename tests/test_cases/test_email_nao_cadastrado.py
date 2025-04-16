@@ -6,7 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from utils.screenshot_manager import ScreenshotManager
+from src.utils.screenshot_manager import ScreenshotManager
 
 # === GARANTE QUE AS PASTAS EXISTAM ===
 os.makedirs("logs", exist_ok=True)

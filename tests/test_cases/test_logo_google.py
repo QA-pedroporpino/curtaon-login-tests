@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.options import Options
 import time
 import base64
 import os
-from utils.screenshot_manager import ScreenshotManager
+from src.utils.screenshot_manager import ScreenshotManager
 
 class TestCurtaOnFavicon(unittest.TestCase):
     def setUp(self):

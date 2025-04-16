@@ -5,7 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from utils.screenshot_manager import ScreenshotManager
+from src.utils.screenshot_manager import ScreenshotManager
 
 # === CONFIGURAÇÃO DO LOGGING COM UTF-8 ===
 logging.basicConfig(
