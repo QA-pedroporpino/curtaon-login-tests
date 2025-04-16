@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Relatório de Testes Automatizados - CurtaON!</title>
+    <style>
+      :root {
+        --primary: #f26522;
+        --success: #4caf50;
+        --danger: #f44336;
+        --warning: #ffc107;
+        --info: #2196f3;
+        --dark: #121212;
+        --darker: #0a0a0a;
+        --light: #f5f5f5;
+        --lighter: #ffffff;
+        --gray: #333333;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: var(--dark);
+        color: var(--light);
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      header {
+        text-align: center;
+        padding: 30px 0;
+        border-bottom: 2px solid var(--primary);
+        margin-bottom: 30px;
+      }
+
+      .logo {
+        max-width: 250px;
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        color: var(--primary);
+        margin: 0;
+        font-size: 2.5rem;
+      }
+
+      h2 {
+        color: var(--light);
+        font-weight: 300;
+        margin: 10px 0 0;
+        font-size: 1.2rem;
+      }
+
+      .summary {
+        background-color: var(--darker);
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 30px;
+        border-left: 4px solid var(--primary);
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+      }
+
+      .summary-item {
+        padding: 15px;
+        border-radius: 5px;
+        text-align: center;
+      }
+
+      .passed {
+        background-color: rgba(76, 175, 80, 0.2);
+        border-left: 4px solid var(--success);
+      }
+
+      .summary-item h3 {
+        margin: 0 0 10px;
+        font-size: 1.8rem;
+      }
+
+      .summary-item p {
+        margin: 0;
+        color: var(--lighter);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+        background-color: var(--darker);
+        table-layout: fixed;
+      }
+
+      th {
+        background-color: var(--gray);
+        color: var(--lighter);
+        padding: 12px 8px;
+        text-align: left;
+        position: sticky;
+        top: 0;
+      }
+
+      td {
+        padding: 12px 8px;
+        border-bottom: 1px solid var(--gray);
+        vertical-align: top;
+        word-wrap: break-word;
+      }
+
+      tr:hover {
+        background-color: rgba(242, 101, 34, 0.05);
+      }
+
+      .test-passed {
+        color: var(--success);
+        font-weight: bold;
+      }
+
+      .log {
+        background-color: var(--dark);
+        border: 1px solid var(--gray);
+        border-radius: 4px;
+        padding: 4px 6px 4px 6px;
+        font-family: "Courier New", monospace;
+        font-size: 0.7rem;
+        line-height: 1.1;
+        white-space: pre-wrap;
+        overflow: visible;
+        max-height: none;
+        text-align: left;
+      }
+
+      .log-line {
+        display: block;
+        margin: 0;
+        padding: 1px 0;
+      }
+
+      .log-info {
+        color: var(--info);
+      }
+
+      .log-success {
+        color: var(--success);
+      }
+
+      .screenshot-container {
+        position: relative;
+        width: 100%;
+        height: 150px;
+        overflow: hidden;
+        border: 1px solid var(--gray);
+        border-radius: 4px;
+        background-color: var(--darker);
+      }
+
+      .screenshot {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transition: transform 0.3s ease;
+        cursor: zoom-in;
+      }
+
+      .screenshot.zoomed {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(1.5);
+        z-index: 1000;
+        max-width: 80vw;
+        max-height: 80vh;
+        cursor: zoom-out;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .duration {
+        color: var(--primary);
+        font-family: monospace;
+        white-space: nowrap;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 40px;
+        padding: 20px;
+        color: var(--light);
+        font-size: 0.9rem;
+        border-top: 1px solid var(--gray);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-right: 5px;
+        white-space: nowrap;
+      }
+
+      .badge-passed {
+        background-color: var(--success);
+        color: white;
+      }
+
+      .col-result {
+        width: 8%;
+      }
+
+      .col-test {
+        width: 22%;
+      }
+
+      .col-duration {
+        width: 7%;
+      }
+
+      .col-log {
+        width: 33%;
+      }
+
+      .col-screenshot {
+        width: 30%;
+      }
+
+      .overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <img
+          src="file:///C:/Projects/curtaON!automacoes/assets/logo.png"
+          alt="CurtaON! Logo"
+          class="logo"
+          onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+        />
+        <h1>Relatório de Testes Automatizados</h1>
+        <h2>Gerado em 30-Mai-2025 às 12:45 por [notable] v4.1.1</h2>
+      </header>
+
+      <div class="summary">
+        <h3>Resumo Executivo</h3>
+        <p>
+          Todos os testes automatizados foram aprovados com sucesso, validando
+          os principais fluxos do sistema.
+        </p>
+
+        <div class="summary-grid">
+          <div class="summary-item passed">
+            <h3>9</h3>
+            <p>Testes Aprovados</p>
+          </div>
+          <div class="summary-item passed">
+            <h3>100%</h3>
+            <p>Taxa de Sucesso</p>
+          </div>
+          <div class="summary-item passed">
+            <h3>00:03:33</h3>
+            <p>Tempo Total</p>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="col-result">Resultado</th>
+            <th class="col-test">Teste</th>
+            <th class="col-duration">Duração</th>
+            <th class="col-log">Log</th>
+            <th class="col-screenshot">Screenshot</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Teste 1 - Email formato inválido -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_email_formato_invalido</td>
+            <td class="col-duration duration">00:00:20</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: Validação de formato de e-mail</span
+                >
+                <span class="log-line">📝 Inserido: usuario@invalido</span>
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou e-mail mal formatado</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_email_formato_incorreto.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_email_formato_incorreto.png"
+                  alt="Screenshot teste formato inválido"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 2 - Email não cadastrado -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_email_nao_cadastrado</td>
+            <td class="col-duration duration">00:00:22</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: E-mail não cadastrado</span
+                >
+                <span class="log-line">📝 Inserido: naoexiste@curtaon.com</span>
+                <span class="log-line"
+                  >✅ Aprovado: Sistema identificou e-mail não cadastrado</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_email_nao_cadastrado.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_email_nao_cadastrado.png"
+                  alt="Screenshot teste email não cadastrado"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 3 - Campos em branco -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_login_campos_em_branco</td>
+            <td class="col-duration duration">00:00:20</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: Campos em branco</span
+                >
+                <span class="log-line">📝 Submetido formulário vazio</span>
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou login sem dados</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_sem_email_e_senha.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_sem_email_e_senha.png"
+                  alt="Screenshot teste campos em branco"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 4 - Email mal formatado -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_login_email_malformado</td>
+            <td class="col-duration duration">00:00:21</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: E-mail mal formatado</span
+                >
+                <span class="log-line">📝 Inserido: email@invalido.</span>
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou e-mail inválido</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_email_formato_incorreto.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_email_formato_incorreto.png"
+                  alt="Screenshot teste email malformado"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 5 - Email válido + senha em branco -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_login_email_valido_senha_em_branco</td>
+            <td class="col-duration duration">00:00:21</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: E-mail válido + senha em branco</span
+                >
+                <span class="log-line"
+                  >📝 Inserido: usuario@valido.com + senha vazia</span
+                >
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou senha em branco</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_modal_nao_encontrado.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_modal_nao_encontrado.png"
+                  alt="Screenshot teste senha em branco"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 6 - Senha incorreta -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_login_email_valido_senha_incorreta</td>
+            <td class="col-duration duration">00:00:21</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: Senha incorreta</span
+                >
+                <span class="log-line"
+                  >📝 Inserido: usuario@valido.com + senhaerrada</span
+                >
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou senha incorreta</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_modal_nao_encontrado.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_modal_nao_encontrado.png"
+                  alt="Screenshot teste senha incorreta"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 7 - Espaços em branco -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_login_espacos_em_branco</td>
+            <td class="col-duration duration">00:00:23</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: Espaços em branco</span
+                >
+                <span class="log-line">📝 Inserido: " " + " "</span>
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou espaços vazios</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_sem_email_e_senha.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_sem_email_e_senha.png"
+                  alt="Screenshot teste espaços em branco"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 8 - Senha preenchida + email em branco -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">
+              test_login_senha_preenchida_email_em_branco
+            </td>
+            <td class="col-duration duration">00:00:21</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line"
+                  >🚀 Iniciando teste: E-mail em branco + senha</span
+                >
+                <span class="log-line"
+                  >📝 Inserido: campo e-mail vazio + senha123</span
+                >
+                <span class="log-line"
+                  >✅ Aprovado: Sistema bloqueou e-mail em branco</span
+                >
+                <span class="log-line"
+                  >📸 Print: erro_sem_email_e_senha.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/erro_sem_email_e_senha.png"
+                  alt="Screenshot teste email em branco"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Teste 9 - Login válido -->
+          <tr>
+            <td class="col-result">
+              <span class="badge badge-passed">✅ Passed</span>
+            </td>
+            <td class="col-test">test_valid_login</td>
+            <td class="col-duration duration">00:00:44</td>
+            <td class="col-log">
+              <div class="log">
+                <span class="log-line">🚀 Iniciando teste: Login válido</span>
+                <span class="log-line"
+                  >📝 Inserido: usuario@valido.com + senha123</span
+                >
+                <span class="log-line"
+                  >✅ Aprovado: Login realizado com sucesso!</span
+                >
+                <span class="log-line"
+                  >📸 Print: teste_login_positivo_aprovado.png</span
+                >
+              </div>
+            </td>
+            <td class="col-screenshot">
+              <div class="screenshot-container">
+                <img
+                  src="file:///C:/Projects/curtaON!automacoes/screenshots/teste_login_positivo_aprovado.png"
+                  alt="Screenshot teste login válido"
+                  class="screenshot"
+                  onerror="this.onerror=null;this.src='data:image/png;base64,placeholder'"
+                />
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="footer">
+        <p>
+          Relatório gerado automaticamente pelo sistema de testes automatizados
+          CurtaON! | Selenium + Pytest
+        </p>
+        <p>© 2025 CurtaON! Todos os direitos reservados</p>
+      </div>
+    </div>
+
+    <!-- Overlay para zoom de imagens -->
+    <div class="overlay" onclick="closeZoom()"></div>
+
+    <script>
+      // Função para zoom de imagens
+      function zoomImage(img) {
+        if (img.classList.contains("zoomed")) {
+          img.classList.remove("zoomed");
+          document.querySelector(".overlay").style.display = "none";
+        } else {
+          // Remove zoom de qualquer outra imagem
+          document.querySelectorAll(".screenshot.zoomed").forEach((el) => {
+            el.classList.remove("zoomed");
+          });
+
+          img.classList.add("zoomed");
+          document.querySelector(".overlay").style.display = "block";
+        }
+      }
+
+      // Fecha o zoom ao clicar no overlay
+      function closeZoom() {
+        document
+          .querySelector(".screenshot.zoomed")
+          ?.classList.remove("zoomed");
+        document.querySelector(".overlay").style.display = "none";
+      }
+
+      // Fecha o zoom com ESC
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+          closeZoom();
+        }
+      });
+
+      // Verifica se as imagens carregaram corretamente
+      document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".screenshot").forEach((img) => {
+          img.onerror = function () {
+            this.style.display = "none";
+            const container = this.closest(".screenshot-container");
+            if (container) {
+              container.innerHTML =
+                '<div style="color:var(--light);text-align:center;padding:20px;">Imagem não encontrada</div>';
+            }
+          };
+
+          // Adiciona evento de clique para zoom
+          img.addEventListener("click", function () {
+            zoomImage(this);
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

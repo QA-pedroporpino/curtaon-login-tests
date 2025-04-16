@@ -19,6 +19,11 @@ on:
         required: false
         default: false
         type: boolean
+      test_filter:
+        description: "Filtro de testes a serem executados (opcional)"
+        required: false
+        type: string
+        default: ""
 
 # Configurações globais e permissões
 permissions:
@@ -44,6 +49,8 @@ env:
   LOGS_DIR: "artifacts/logs"
   # Configurações de debug
   DEBUG: ${{ github.event.inputs.debug_enabled == 'true' }}
+  # Configurações de cache
+  CACHE_VERSION: "v1"
 
 jobs:
   test:
@@ -67,9 +74,20 @@ jobs:
             requirements.txt
             setup.py
 
+      # ==== CACHE DO CHROME ====
+      - name: Cache do Chrome e ChromeDriver
+        uses: actions/cache@v4
+        id: chrome-cache
+        with:
+          path: |
+            /usr/bin/google-chrome
+            /usr/local/bin/chromedriver
+          key: ${{ runner.os }}-chrome-${{ env.CACHE_VERSION }}
+
       # ==== SETUP DO CHROME E XVFB ====
       - name: Setup Chrome e ambiente gráfico
         id: setup-chrome
+        if: steps.chrome-cache.outputs.cache-hit != 'true'
         run: |
           set -eo pipefail
 
@@ -115,6 +133,31 @@ jobs:
           echo "::group::✅ Verificando versões"
           echo "Chrome version: $(google-chrome --version)"
           echo "ChromeDriver version: $(chromedriver --version)"
+          echo "::endgroup::"
+
+      # ==== VERIFICAÇÃO DE SAÚDE DO AMBIENTE ====
+      - name: Verificar saúde do ambiente
+        run: |
+          echo "::group::🔍 Verificando saúde do ambiente"
+          # Verifica se o Chrome está instalado e funcionando
+          if ! command -v google-chrome &> /dev/null; then
+            echo "❌ Chrome não encontrado!"
+            exit 1
+          fi
+
+          # Verifica se o ChromeDriver está instalado e funcionando
+          if ! command -v chromedriver &> /dev/null; then
+            echo "❌ ChromeDriver não encontrado!"
+            exit 1
+          fi
+
+          # Verifica se o Xvfb está rodando
+          if ! pgrep Xvfb > /dev/null; then
+            echo "❌ Xvfb não está rodando!"
+            exit 1
+          fi
+
+          echo "✅ Ambiente verificado com sucesso"
           echo "::endgroup::"
 
       # ==== SETUP PYTHON E DEPENDÊNCIAS ====
@@ -180,6 +223,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           PYTEST_ADDOPTS: "--color=yes"
+          TEST_FILTER: ${{ github.event.inputs.test_filter }}
         run: |
           set -eo pipefail
 
@@ -187,12 +231,14 @@ jobs:
           echo "Diretório atual: $(pwd)"
           echo "PYTHONPATH: ${PYTHONPATH}"
           echo "Diretório de testes: ${TESTS_DIR}"
+          echo "Filtro de testes: ${TEST_FILTER}"
           ls -la "${TESTS_DIR}"
           echo "::endgroup::"
 
           echo "::group::🧪 Executando suite de testes"
           # Executa pytest com tratamento de erro
           pytest "${TESTS_DIR}"/ \
+            ${TEST_FILTER:+ -k "${TEST_FILTER}"} \
             --html="${REPORTS_DIR}/report.html" \
             --self-contained-html \
             -v \
