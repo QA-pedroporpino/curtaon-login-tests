@@ -4,13 +4,13 @@
 # Última atualização: Fevereiro 2024
 # =================================================================
 
-name: Daily Login Tests
+name: Testes de Login Diários
 
 # Definição dos triggers do workflow
 on:
-  # Execução agendada - 12:00 UTC
+  # Execução agendada - 3h UTC (meia-noite horário de Brasília)
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "0 3 * * *"
   # Permite execução manual via UI
   workflow_dispatch:
     inputs:
@@ -44,33 +44,31 @@ env:
   PROJECT_ROOT: "."
   TESTS_DIR: "tests/test_cases"
   ARTIFACTS_DIR: "artifacts"
-  REPORTS_DIR: "tests/reports"
+  REPORTS_DIR: "artifacts/reports"
   HTML_DIR: "artifacts/html"
-  SCREENSHOTS_DIR: tests/screenshots
-  LOGS_DIR: tests/logs
+  SCREENSHOTS_DIR: "artifacts/screenshots"
+  LOGS_DIR: "artifacts/logs"
   # Configurações de debug
   DEBUG: ${{ github.event.inputs.debug_enabled == 'true' }}
   # Configurações de cache
   CACHE_VERSION: "v1"
-  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   test:
     name: Executar Suite de Testes
     # Usando Ubuntu 22.04 para garantir compatibilidade com libgconf-2-4
     runs-on: ubuntu-22.04
-    timeout-minutes: 30 # Aumentado para evitar timeouts
 
     steps:
       # ==== SETUP DO AMBIENTE ====
       - name: Checkout do código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Python ${{ env.PYTHON_VERSION }}
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
@@ -80,76 +78,78 @@ jobs:
 
       - name: Criar ambiente virtual e instalar dependências
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          sudo apt-get update
-          sudo apt-get install -y xvfb libgconf-2-4 chromium-browser
-          pip install --upgrade pip
-          pip install -r tests/test_cases/requirements.txt
-          pip install pytest-xvfb pytest-html pytest-xdist
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -e .
+          pip install -r requirements.txt
 
       - name: Criar diretórios necessários
         run: |
+          mkdir -p ${{ env.ARTIFACTS_DIR }}
+          mkdir -p ${{ env.REPORTS_DIR }}
+          mkdir -p ${{ env.HTML_DIR }}
           mkdir -p ${{ env.SCREENSHOTS_DIR }}
           mkdir -p ${{ env.LOGS_DIR }}
-          mkdir -p ${{ env.REPORTS_DIR }}
+          mkdir -p logs
+          mkdir -p screenshots
 
       # ==== SETUP DO CHROME E XVFB ====
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@latest
-        with:
-          chrome-version: stable
-
-      - name: Start Xvfb
+      - name: Setup Chrome e ambiente gráfico
         run: |
+          # Instala dependências
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            libnss3 \
+            libgconf-2-4 \
+            libfontconfig1
+          # Instala Chrome
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
+          rm google-chrome-stable_current_amd64.deb
+          # Inicia Xvfb
           Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-
-      - name: Wait for Xvfb
-        run: sleep 3
 
       # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
         run: |
           # Ativa o ambiente virtual
-          source venv/bin/activate
-
+          source .venv/bin/activate
           # Configura display para Xvfb
           export DISPLAY=:99
-
           # Executa os testes com mais informações de debug
-          pytest tests/test_cases/ \
-            -v \
-            --html=${{ env.REPORTS_DIR }}/report.html \
-            --self-contained-html \
+          pytest ${{ env.TESTS_DIR }} \
             --junitxml=${{ env.REPORTS_DIR }}/junit.xml \
-            --log-cli-level=INFO \
-            --log-file=${{ env.LOGS_DIR }}/pytest.log
+            --html=${{ env.HTML_DIR }}/report.html \
+            --self-contained-html \
+            -v \
+            --capture=no \
+            ${{ github.event.inputs.test_filter && format('--filter={0}', github.event.inputs.test_filter) || '' }}
 
       # ==== PUBLICAÇÃO DE ARTEFATOS ====
       - name: Publicar relatório HTML
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: test-report
-          path: ${{ env.REPORTS_DIR }}
-          retention-days: 7
+          name: report-html
+          path: ${{ env.HTML_DIR }}
+          if-no-files-found: error
 
       - name: Publicar screenshots
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: screenshots
           path: ${{ env.SCREENSHOTS_DIR }}
-          retention-days: 7
+          if-no-files-found: error
 
       - name: Publicar logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: logs
           path: ${{ env.LOGS_DIR }}
-          retention-days: 7
+          if-no-files-found: error
 
       # ==== PUBLICAÇÃO DE RESULTADOS ====
       - name: Publicar resultados dos testes
@@ -166,15 +166,12 @@ jobs:
           echo "::group::📜 Log do Pytest"
           cat "${LOGS_DIR}/pytest.log" || echo "Log não encontrado"
           echo "::endgroup::"
-
           echo "::group::🧩 Variáveis de Ambiente"
           printenv | sort
           echo "::endgroup::"
-
           echo "::group::🐍 Dependências Python"
           pip list --format=columns
           echo "::endgroup::"
-
           echo "::group::🔍 Estrutura Final"
           ls -R
           echo "::endgroup::"
@@ -184,7 +181,6 @@ jobs:
         if: always()
         run: |
           set -eo pipefail
-
           echo "::group::🧹 Limpando ambiente"
           if [ -f /tmp/xvfb.pid ]; then
             kill $(cat /tmp/xvfb.pid) || true
@@ -194,5 +190,3 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
           echo "::endgroup::"
-
-          rm -rf venv
