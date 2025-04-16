@@ -37,7 +37,6 @@ env:
   PYTHONUNBUFFERED: "1" # Força output sem buffer
   FORCE_COLOR: "1" # Força saída colorida
   DEBIAN_FRONTEND: "noninteractive"
-  PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/src" # Adiciona src ao PYTHONPATH
   # Configurações do Chrome
   DISPLAY: ":99"
   CHROME_BIN: "/usr/bin/google-chrome"

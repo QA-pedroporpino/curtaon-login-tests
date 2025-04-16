@@ -5,7 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from src.utils.screenshot_manager import ScreenshotManager
+from utils.screenshot_manager import ScreenshotManager
 
 # === CONFIGURAÇÃO DO LOGGING ===
 logging.basicConfig(
