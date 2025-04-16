@@ -45,6 +45,7 @@ env:
   TESTS_DIR: "tests/test_cases"
   ARTIFACTS_DIR: "artifacts"
   REPORTS_DIR: "artifacts/reports"
+  HTML_DIR: "artifacts/html"
   SCREENSHOTS_DIR: "artifacts/screenshots"
   LOGS_DIR: "artifacts/logs"
   # Configurações de debug
@@ -189,7 +190,7 @@ jobs:
         run: |
           echo "::group::📁 Criando diretórios para artefatos"
           # Cria diretórios com -p para não falhar se já existirem
-          mkdir -p "${ARTIFACTS_DIR}"/{reports,screenshots,logs}
+          mkdir -p "${ARTIFACTS_DIR}"/{reports,html,screenshots,logs}
 
           # Garante permissões corretas
           chmod -R 777 "${ARTIFACTS_DIR}"
@@ -229,8 +230,9 @@ jobs:
           # Executa pytest com tratamento de erro
           pytest "${TESTS_DIR}"/ \
             ${TEST_FILTER:+ -k "${TEST_FILTER}"} \
-            --html="${REPORTS_DIR}/report.html" \
+            --html="${HTML_DIR}/report.html" \
             --self-contained-html \
+            --junitxml="${REPORTS_DIR}/junit.xml" \
             -v \
             --reruns 2 \
             --reruns-delay 1 \
@@ -242,18 +244,28 @@ jobs:
             --log-cli-level=INFO \
             --capture=tee-sys \
             --timeout=300 \
-            --junitxml="${REPORTS_DIR}/junit.xml" \
             | tee "${LOGS_DIR}/pytest.log" || test_exit_code=$?
 
           echo "::group::📊 Verificando artefatos gerados"
           echo "Conteúdo do diretório de relatórios:"
           ls -la "${REPORTS_DIR}"
+          echo "Conteúdo do diretório HTML:"
+          ls -la "${HTML_DIR}"
 
           # Verifica se os relatórios foram gerados
-          for report in "report.html" "junit.xml" "coverage.xml"; do
+          for report in "junit.xml" "coverage.xml"; do
             if [ -f "${REPORTS_DIR}/${report}" ]; then
               echo "✅ ${report} gerado com sucesso"
               echo "Tamanho: $(stat -f %z "${REPORTS_DIR}/${report}") bytes"
+            else
+              echo "❌ ${report} não encontrado!"
+            fi
+          done
+
+          for report in "report.html"; do
+            if [ -f "${HTML_DIR}/${report}" ]; then
+              echo "✅ ${report} gerado com sucesso"
+              echo "Tamanho: $(stat -f %z "${HTML_DIR}/${report}") bytes"
             else
               echo "❌ ${report} não encontrado!"
             fi
