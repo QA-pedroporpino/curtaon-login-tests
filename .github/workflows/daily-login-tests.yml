@@ -167,22 +167,39 @@ jobs:
           # Upgrade pip e setuptools
           python -m pip install --upgrade pip setuptools wheel
 
-          # Instala pytest e plugins primeiro para garantir versões corretas
+          # Instala dependências básicas primeiro
           pip install pytest==7.4.3 \
                     pytest-html==4.1.1 \
-                    pytest-cov==4.1.0 \
-                    pytest-xdist==3.3.1 \
-                    pytest-timeout==2.2.0 \
-                    pytest-rerunfailures==12.0
+                    selenium==4.8.0 \
+                    webdriver-manager==3.8.6
 
           # Instala dependências do projeto
           pip install -r requirements.txt
           pip install -e .
 
-          # Verifica instalação do pytest-html
-          echo "Verificando instalação do pytest-html:"
-          pip show pytest-html
-          pytest --trace-config | grep -i "html"
+          # Verifica instalação das dependências
+          echo "Verificando instalação das dependências:"
+          pip list --format=columns
+          echo "::endgroup::"
+
+      # ==== VERIFICAÇÃO DA ESTRUTURA DO PROJETO ====
+      - name: Verificar estrutura do projeto
+        run: |
+          echo "::group::🗂️ Estrutura do projeto"
+          echo "Diretório atual: $(pwd)"
+          echo "Conteúdo do diretório:"
+          ls -R
+
+          echo "::group::📝 Arquivos de teste encontrados"
+          find "${TESTS_DIR}" -name "*.py" | xargs -I {} sh -c 'echo "- {} ($(wc -l < {})) linhas)"'
+          echo "::endgroup::"
+
+          echo "::group::🔍 Verificando arquivos __init__.py"
+          find . -name "__init__.py" | sort
+          echo "::endgroup::"
+
+          echo "::group::📦 Verificando estrutura do pacote"
+          python -c "import sys; print('\n'.join(sys.path))"
           echo "::endgroup::"
 
       # ==== PREPARAÇÃO DOS DIRETÓRIOS ====
@@ -195,17 +212,11 @@ jobs:
           # Garante permissões corretas
           chmod -R 777 "${ARTIFACTS_DIR}"
 
+          # Cria symlink para compatibilidade com screenshots
+          ln -sfn "$(pwd)/${SCREENSHOTS_DIR}" "$(pwd)/screenshots"
+
           echo "Estrutura de diretórios após criação:"
           tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
-          echo "::endgroup::"
-
-      # ==== VERIFICAÇÃO DOS ARQUIVOS DE TESTE ====
-      - name: Verificar arquivos de teste
-        run: |
-          echo "::group::🔍 Verificando arquivos de teste"
-          echo "Diretório atual: $(pwd)"
-          echo "Conteúdo do diretório de testes:"
-          ls -R "${TESTS_DIR}"
           echo "::endgroup::"
 
       # ==== EXECUÇÃO DOS TESTES ====
@@ -234,16 +245,8 @@ jobs:
             --self-contained-html \
             --junitxml="${REPORTS_DIR}/junit.xml" \
             -v \
-            --reruns 2 \
-            --reruns-delay 1 \
-            -n auto \
-            --dist loadfile \
-            --cov=src \
-            --cov-report=html:"${REPORTS_DIR}/coverage" \
-            --cov-report=xml:"${REPORTS_DIR}/coverage.xml" \
-            --log-cli-level=INFO \
             --capture=tee-sys \
-            --timeout=300 \
+            --log-cli-level=DEBUG \
             | tee "${LOGS_DIR}/pytest.log" || test_exit_code=$?
 
           echo "::group::📊 Verificando artefatos gerados"
@@ -253,7 +256,7 @@ jobs:
           ls -la "${HTML_DIR}"
 
           # Verifica se os relatórios foram gerados
-          for report in "junit.xml" "coverage.xml"; do
+          for report in "junit.xml"; do
             if [ -f "${REPORTS_DIR}/${report}" ]; then
               echo "✅ ${report} gerado com sucesso"
               echo "Tamanho: $(stat -f %z "${REPORTS_DIR}/${report}") bytes"
@@ -305,8 +308,19 @@ jobs:
       - name: Debug final
         if: always()
         run: |
-          echo "::group::🔍 Debug final"
-          echo "Estrutura completa do diretório:"
+          echo "::group::📜 Log do Pytest"
+          cat "${LOGS_DIR}/pytest.log" || echo "Log não encontrado"
+          echo "::endgroup::"
+
+          echo "::group::🧩 Variáveis de Ambiente"
+          printenv | sort
+          echo "::endgroup::"
+
+          echo "::group::🐍 Dependências Python"
+          pip list --format=columns
+          echo "::endgroup::"
+
+          echo "::group::🔍 Estrutura Final"
           ls -R
           echo "::endgroup::"
 
