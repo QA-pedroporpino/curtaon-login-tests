@@ -15,25 +15,63 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Checkout completo para histórico
 
       - name: Configurar Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+          cache: "pip" # Habilita cache de dependências
+
+      - name: Instalar Chrome e ChromeDriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
+          wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION.0.6261.94/linux64/chromedriver-linux64.zip"
+          unzip chromedriver-linux64.zip
+          sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
+          sudo chmod +x /usr/local/bin/chromedriver
 
       - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-html
+          pip install pytest-html pytest-cov
+          pip install -e .
+
+      - name: Criar diretórios necessários
+        run: |
+          mkdir -p screenshots
+          mkdir -p reports
+          mkdir -p logs
 
       - name: Executar testes
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
+          LOG_DIR: ${{ github.workspace }}/logs
         run: |
-          pytest tests/ --html=report.html --self-contained-html
+          pytest tests/ \
+            --html=report.html \
+            --self-contained-html \
+            -v \
+            --reruns 2 \
+            --reruns-delay 1 \
+            -n auto \
+            --dist loadfile \
+            --cov=src \
+            --cov-report=html:coverage_report
 
       - name: Publicar relatório de testes
-        if: always() # Executa mesmo se os testes falharem
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-testes
-          path: report.html
+          path: |
+            report.html
+            coverage_report/
+            screenshots/
+            logs/
+          retention-days: 14 # Mantém os artefatos por 14 dias
