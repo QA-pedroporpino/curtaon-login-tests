@@ -231,6 +231,9 @@ jobs:
           set -eo pipefail
 
           echo "::group::🧪 Preparando execução dos testes"
+          # Ativa o ambiente virtual
+          source .venv/bin/activate
+
           echo "Diretório atual: $(pwd)"
           echo "PYTHONPATH: ${PYTHONPATH}"
           echo "Diretório de testes: ${TESTS_DIR}"
@@ -259,7 +262,7 @@ jobs:
           for report in "junit.xml"; do
             if [ -f "${REPORTS_DIR}/${report}" ]; then
               echo "✅ ${report} gerado com sucesso"
-              echo "Tamanho: $(stat -f %z "${REPORTS_DIR}/${report}") bytes"
+              echo "Tamanho: $(stat -c %s "${REPORTS_DIR}/${report}") bytes"
             else
               echo "❌ ${report} não encontrado!"
             fi
@@ -268,7 +271,7 @@ jobs:
           for report in "report.html"; do
             if [ -f "${HTML_DIR}/${report}" ]; then
               echo "✅ ${report} gerado com sucesso"
-              echo "Tamanho: $(stat -f %z "${HTML_DIR}/${report}") bytes"
+              echo "Tamanho: $(stat -c %s "${HTML_DIR}/${report}") bytes"
             else
               echo "❌ ${report} não encontrado!"
             fi
