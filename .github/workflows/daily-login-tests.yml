@@ -223,16 +223,13 @@ jobs:
       - name: Executar testes
         id: run-tests
         timeout-minutes: 30 # Timeout de segurança
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-          PYTEST_ADDOPTS: "--color=yes"
-          TEST_FILTER: ${{ github.event.inputs.test_filter }}
         run: |
           set -eo pipefail
 
           echo "::group::🧪 Preparando execução dos testes"
-          # Ativa o ambiente virtual
+          # Ativa o ambiente virtual e configura PYTHONPATH
           source .venv/bin/activate
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
 
           echo "Diretório atual: $(pwd)"
           echo "PYTHONPATH: ${PYTHONPATH}"
