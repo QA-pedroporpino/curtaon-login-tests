@@ -5,6 +5,10 @@ on:
     - cron: "0 3 * * *" # Executa todos os dias às 3h UTC
   workflow_dispatch: # Permite execução manual através da interface do GitHub
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -28,8 +32,8 @@ jobs:
           pytest tests/ --html=report.html --self-contained-html
 
       - name: Publicar relatório de testes
-        uses: actions/upload-artifact@v3
         if: always() # Executa mesmo se os testes falharem
+        uses: actions/upload-artifact@v4
         with:
           name: relatorio-testes
           path: report.html
