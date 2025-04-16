@@ -6,7 +6,7 @@ setup(
     description="Framework de automação de testes para o CurtaON",
     author="Seu Nome",
     author_email="seu.email@exemplo.com",
-    packages=find_packages(include=['src', 'src.*', 'src.utils', 'src.utils.*']),
+    packages=find_packages(),
     install_requires=[
         "selenium>=4.15.2",
         "pytest>=7.4.3",
