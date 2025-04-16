@@ -77,6 +77,13 @@ jobs:
             requirements.txt
             setup.py
 
+      - name: Criar ambiente virtual e instalar dependências
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -e .
+          pip install -r requirements.txt
+
       - name: Criar diretórios necessários
         run: |
           mkdir -p ${{ env.ARTIFACTS_DIR }}
@@ -109,12 +116,8 @@ jobs:
 
           # Baixa e instala a versão mais recente do Chrome
           wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
           rm google-chrome-stable_current_amd64.deb
-
-          # Obtém a versão exata do Chrome instalado
-          CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3)
-          echo "chrome_version=${CHROME_VERSION}" >> $GITHUB_OUTPUT
           echo "::endgroup::"
 
           echo "::group::🔧 Instalando ChromeDriver"
@@ -162,37 +165,6 @@ jobs:
           echo "✅ Ambiente verificado com sucesso"
           echo "::endgroup::"
 
-      # ==== SETUP PYTHON E DEPENDÊNCIAS ====
-      - name: Setup ambiente Python
-        id: setup-env
-        run: |
-          set -eo pipefail
-
-          echo "::group::🐍 Criando ambiente virtual"
-          python -m venv .venv
-          source .venv/bin/activate
-          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
-          echo "::endgroup::"
-
-          echo "::group::📦 Instalando dependências"
-          # Upgrade pip e setuptools
-          python -m pip install --upgrade pip setuptools wheel
-
-          # Instala dependências básicas primeiro
-          pip install pytest==7.4.3 \
-                    pytest-html==4.1.1 \
-                    selenium==4.8.0 \
-                    webdriver-manager==3.8.6
-
-          # Instala dependências do projeto
-          pip install -r requirements.txt
-          pip install -e .
-
-          # Verifica instalação das dependências
-          echo "Verificando instalação das dependências:"
-          pip list --format=columns
-          echo "::endgroup::"
-
       # ==== VERIFICAÇÃO DA ESTRUTURA DO PROJETO ====
       - name: Verificar estrutura do projeto
         run: |
@@ -233,12 +205,15 @@ jobs:
       # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
         run: |
+          # Ativa o ambiente virtual
+          source .venv/bin/activate
+
           # Inicia o Xvfb em background
           /usr/bin/Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
           export DISPLAY=:99
 
           # Executa os testes
-          python -m pytest ${{ env.TESTS_DIR }} \
+          pytest ${{ env.TESTS_DIR }} \
             --junitxml=${{ env.REPORTS_DIR }}/junit.xml \
             --html=${{ env.HTML_DIR }}/report.html \
             --self-contained-html \
