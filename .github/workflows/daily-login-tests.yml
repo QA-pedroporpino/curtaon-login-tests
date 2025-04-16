@@ -95,101 +95,22 @@ jobs:
 
       # ==== SETUP DO CHROME E XVFB ====
       - name: Setup Chrome e ambiente gráfico
-        id: setup-chrome
         run: |
-          set -eo pipefail
-
-          echo "::group::🔧 Instalando dependências do sistema"
+          # Instala dependências
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
             xvfb \
             libnss3 \
             libgconf-2-4 \
-            libfontconfig1 \
-            tree
-          echo "::endgroup::"
+            libfontconfig1
 
-          echo "::group::🌐 Instalando Google Chrome"
+          # Instala Chrome
           wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
           rm google-chrome-stable_current_amd64.deb
 
-          # Pega a versão do Chrome instalado
-          CHROME_VERSION=$(google-chrome --version | cut -d " " -f 3)
-          echo "Chrome version: $CHROME_VERSION"
-          echo "::endgroup::"
-
-          echo "::group::🔧 Instalando ChromeDriver"
-          # Instala o ChromeDriver usando o webdriver-manager
-          python -m pip install webdriver-manager
-          echo "::endgroup::"
-
-          echo "::group::🖥️ Configurando Display Virtual"
-          # Inicia Xvfb em background
+          # Inicia Xvfb
           Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-          echo "::endgroup::"
-
-      # ==== VERIFICAÇÃO DE SAÚDE DO AMBIENTE ====
-      - name: Verificar saúde do ambiente
-        run: |
-          echo "::group::🔍 Verificando saúde do ambiente"
-          # Verifica se o Chrome está instalado e funcionando
-          if ! command -v google-chrome &> /dev/null; then
-            echo "❌ Chrome não encontrado!"
-            exit 1
-          fi
-
-          # Verifica se o ChromeDriver está instalado e funcionando
-          if ! command -v chromedriver &> /dev/null; then
-            echo "❌ ChromeDriver não encontrado!"
-            exit 1
-          fi
-
-          # Verifica se o Xvfb está rodando
-          if ! pgrep Xvfb > /dev/null; then
-            echo "❌ Xvfb não está rodando!"
-            exit 1
-          fi
-
-          echo "✅ Ambiente verificado com sucesso"
-          echo "::endgroup::"
-
-      # ==== VERIFICAÇÃO DA ESTRUTURA DO PROJETO ====
-      - name: Verificar estrutura do projeto
-        run: |
-          echo "::group::🗂️ Estrutura do projeto"
-          echo "Diretório atual: $(pwd)"
-          echo "Conteúdo do diretório:"
-          ls -R
-
-          echo "::group::📝 Arquivos de teste encontrados"
-          find "${TESTS_DIR}" -name "*.py" | xargs -I {} sh -c 'echo "- {} ($(wc -l < {})) linhas)"'
-          echo "::endgroup::"
-
-          echo "::group::🔍 Verificando arquivos __init__.py"
-          find . -name "__init__.py" | sort
-          echo "::endgroup::"
-
-          echo "::group::📦 Verificando estrutura do pacote"
-          python -c "import sys; print('\n'.join(sys.path))"
-          echo "::endgroup::"
-
-      # ==== PREPARAÇÃO DOS DIRETÓRIOS ====
-      - name: Preparar diretórios
-        run: |
-          echo "::group::📁 Criando diretórios para artefatos"
-          # Cria diretórios com -p para não falhar se já existirem
-          mkdir -p "${ARTIFACTS_DIR}"/{reports,html,screenshots,logs}
-
-          # Garante permissões corretas
-          chmod -R 777 "${ARTIFACTS_DIR}"
-
-          # Cria symlink para compatibilidade com screenshots
-          ln -sfn "$(pwd)/${SCREENSHOTS_DIR}" "$(pwd)/screenshots"
-
-          echo "Estrutura de diretórios após criação:"
-          tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
-          echo "::endgroup::"
 
       # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
@@ -197,8 +118,7 @@ jobs:
           # Ativa o ambiente virtual
           source .venv/bin/activate
 
-          # Inicia o Xvfb em background
-          /usr/bin/Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+          # Configura display para Xvfb
           export DISPLAY=:99
 
           # Executa os testes com mais informações de debug
@@ -211,15 +131,29 @@ jobs:
             ${{ github.event.inputs.test_filter && format('--filter={0}', github.event.inputs.test_filter) || '' }}
 
       # ==== PUBLICAÇÃO DE ARTEFATOS ====
-      - name: Publicar artefatos
-        if: always() # Executa mesmo se os testes falharem
+      - name: Publicar relatório HTML
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts
-          path: |
-            ${{ env.ARTIFACTS_DIR }}
-          retention-days: 14
-          if-no-files-found: warn # Avisa mas não falha se não encontrar arquivos
+          name: report-html
+          path: ${{ env.HTML_DIR }}
+          if-no-files-found: error
+
+      - name: Publicar screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ${{ env.SCREENSHOTS_DIR }}
+          if-no-files-found: error
+
+      - name: Publicar logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: ${{ env.LOGS_DIR }}
+          if-no-files-found: error
 
       # ==== PUBLICAÇÃO DE RESULTADOS ====
       - name: Publicar resultados dos testes
