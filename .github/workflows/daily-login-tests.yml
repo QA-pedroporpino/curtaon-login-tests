@@ -35,11 +35,14 @@ env:
   # Configurações do Chrome
   DISPLAY: ":99"
   CHROME_BIN: "/usr/bin/google-chrome"
-  # Diretórios de artefatos
+  # Diretórios de artefatos - Usando diretório workspace para garantir paths absolutos
+  WORKSPACE: ${{ github.workspace }}
   ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
   REPORT_DIR: "${{ github.workspace }}/artifacts/reports"
   SCREENSHOT_DIR: "${{ github.workspace }}/artifacts/screenshots"
   LOG_DIR: "${{ github.workspace }}/artifacts/logs"
+  # Configurações de debug
+  DEBUG: ${{ github.event.inputs.debug_enabled == 'true' }}
 
 jobs:
   test:
@@ -89,7 +92,6 @@ jobs:
 
           # Obtém a versão exata do Chrome instalado
           CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3)
-          CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d '.' -f 1)
           echo "chrome_version=${CHROME_VERSION}" >> $GITHUB_OUTPUT
           echo "::endgroup::"
 
@@ -105,6 +107,7 @@ jobs:
           echo "::group::🖥️ Configurando Display Virtual"
           # Inicia Xvfb em background
           Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          echo $! > /tmp/xvfb.pid  # Salva PID para cleanup
           echo "::endgroup::"
 
           echo "::group::✅ Verificando versões"
@@ -125,30 +128,57 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::📦 Instalando dependências"
-          python -m pip install --upgrade pip
+          # Upgrade pip e setuptools
+          python -m pip install --upgrade pip setuptools wheel
+
+          # Instala pytest e plugins primeiro para garantir versões corretas
+          pip install pytest==7.4.3 \
+                    pytest-html==4.1.1 \
+                    pytest-cov==4.1.0 \
+                    pytest-xdist==3.3.1 \
+                    pytest-timeout==2.2.0 \
+                    pytest-rerunfailures==12.0
+
+          # Instala dependências do projeto
           pip install -r requirements.txt
-          pip install pytest-html pytest-cov pytest-xdist pytest-timeout
           pip install -e .
+
+          # Verifica instalação do pytest-html
+          echo "Verificando instalação do pytest-html:"
+          pip show pytest-html
+          pytest --trace-config | grep -i "html"
           echo "::endgroup::"
 
       # ==== PREPARAÇÃO DOS DIRETÓRIOS ====
       - name: Preparar diretórios
         run: |
-          mkdir -p "$ARTIFACT_DIR"/{reports,screenshots,logs}
-          chmod -R 777 "$ARTIFACT_DIR"
+          echo "::group::📁 Criando estrutura de diretórios"
+          mkdir -p "${ARTIFACT_DIR}"/{reports,screenshots,logs}
+          chmod -R 777 "${ARTIFACT_DIR}"
+
+          echo "Estrutura de diretórios criada:"
+          tree "${ARTIFACT_DIR}" || ls -R "${ARTIFACT_DIR}"
+          echo "::endgroup::"
 
       # ==== EXECUÇÃO DOS TESTES ====
       - name: Executar testes
         id: run-tests
         timeout-minutes: 30 # Timeout de segurança
         env:
-          PYTHONPATH: ${{ github.workspace }}/src
-          # Adicione outras variáveis de ambiente necessárias aqui
-          # TEST_BASE_URL: ${{ secrets.TEST_BASE_URL }}
+          PYTHONPATH: ${{ env.WORKSPACE }}/src
+          PYTEST_ADDOPTS: "--color=yes"
         run: |
           set -eo pipefail
 
+          echo "::group::🧪 Preparando execução dos testes"
+          echo "Diretório atual: $(pwd)"
+          echo "PYTHONPATH: ${PYTHONPATH}"
+          echo "Conteúdo do diretório de testes:"
+          ls -la tests/
+          echo "::endgroup::"
+
           echo "::group::🧪 Executando suite de testes"
+          # Executa pytest com tratamento de erro
           pytest tests/ \
             --html="${REPORT_DIR}/report.html" \
             --self-contained-html \
@@ -164,8 +194,27 @@ jobs:
             --capture=tee-sys \
             --timeout=300 \
             --junitxml="${REPORT_DIR}/junit.xml" \
-            | tee "${LOG_DIR}/pytest.log"
+            | tee "${LOG_DIR}/pytest.log" || test_exit_code=$?
+
+          echo "::group::📊 Verificando artefatos gerados"
+          echo "Conteúdo do diretório de relatórios:"
+          ls -la "${REPORT_DIR}"
+
+          if [ -f "${REPORT_DIR}/report.html" ]; then
+            echo "✅ Relatório HTML gerado com sucesso"
+            echo "Tamanho do relatório: $(stat -f %z "${REPORT_DIR}/report.html") bytes"
+          else
+            echo "❌ Relatório HTML não encontrado!"
+            echo "Conteúdo do diretório atual:"
+            ls -la
+          fi
           echo "::endgroup::"
+
+          # Propaga o código de saída do pytest se houver falha
+          if [ -n "$test_exit_code" ]; then
+            echo "Testes falharam com código $test_exit_code"
+            exit $test_exit_code
+          fi
 
       # ==== PUBLICAÇÃO DE ARTEFATOS ====
       - name: Publicar artefatos
@@ -176,7 +225,7 @@ jobs:
           path: |
             ${{ env.ARTIFACT_DIR }}
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: error # Falha se não encontrar arquivos
 
       # ==== PUBLICAÇÃO DE RESULTADOS ====
       - name: Publicar resultados dos testes
@@ -193,6 +242,10 @@ jobs:
           set -eo pipefail
 
           echo "::group::🧹 Limpando ambiente"
+          if [ -f /tmp/xvfb.pid ]; then
+            kill $(cat /tmp/xvfb.pid) || true
+            rm /tmp/xvfb.pid
+          fi
           pkill Xvfb || true
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
