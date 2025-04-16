@@ -1,60 +1,107 @@
 name: Testes de Login Diários
 
+# Definição de quando o workflow será executado
 on:
   schedule:
-    - cron: "0 3 * * *" # Executa todos os dias às 3h UTC
-  workflow_dispatch: # Permite execução manual através da interface do GitHub
+    # Executa todos os dias às 3h UTC (meia-noite horário de Brasília)
+    - cron: "0 3 * * *"
+  # Permite execução manual através da interface do GitHub
+  workflow_dispatch:
 
+# Define as permissões necessárias para o workflow
 permissions:
-  contents: read
-  actions: write
+  contents: read # Permissão para ler o código
+  actions: write # Permissão para criar artefatos
+
+env:
+  PYTHON_VERSION: "3.11"
+  CHROME_VERSION: "121.0.6167.85" # Versão específica do Chrome para maior estabilidade
+  DISPLAY: ":99" # Display virtual para o Chrome
 
 jobs:
   test:
+    name: Executar Testes Automatizados
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      # Step 1: Checkout do código
+      - name: Checkout do código
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0 # Checkout completo para histórico
 
-      - name: Configurar Python 3.11
+      # Step 2: Configuração do Python
+      - name: Configurar Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip" # Habilita cache de dependências
 
+      # Step 3: Configuração do ambiente virtual do Python
+      - name: Configurar ambiente virtual
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+
+      # Step 4: Instalação e configuração do Chrome e ChromeDriver
       - name: Instalar Chrome e ChromeDriver
         run: |
+          # Instala dependências necessárias
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          sudo apt-get install -y xvfb wget unzip
+
+          # Remove versões antigas do Chrome se existirem
+          sudo apt-get remove google-chrome-stable || true
+          sudo rm -rf /usr/bin/google-chrome* || true
+
+          # Instala o Chrome
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || true
+          sudo apt-get install -f -y
+
+          # Instala o ChromeDriver compatível
           CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
-          wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION.0.6261.94/linux64/chromedriver-linux64.zip"
-          unzip chromedriver-linux64.zip
+          wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}.0.6261.94/linux64/chromedriver-linux64.zip"
+          unzip -q chromedriver-linux64.zip
           sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
 
+          # Inicia o Xvfb (X Virtual Framebuffer)
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+
+          # Verifica as versões instaladas
+          echo "Chrome version:"
+          google-chrome --version
+          echo "ChromeDriver version:"
+          chromedriver --version
+
+      # Step 5: Instalação das dependências Python
       - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-html pytest-cov
+          pip install pytest-html pytest-cov pytest-xdist
           pip install -e .
 
-      - name: Criar diretórios necessários
+      # Step 6: Preparação do ambiente de testes
+      - name: Criar diretórios para artefatos
         run: |
           mkdir -p screenshots
           mkdir -p reports
           mkdir -p logs
+          chmod -R 777 screenshots reports logs
 
+      # Step 7: Execução dos testes
       - name: Executar testes
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
           LOG_DIR: ${{ github.workspace }}/logs
         run: |
+          # Executa os testes com retry em caso de falha
           pytest tests/ \
-            --html=report.html \
+            --html=reports/report.html \
             --self-contained-html \
             -v \
             --reruns 2 \
@@ -62,16 +109,26 @@ jobs:
             -n auto \
             --dist loadfile \
             --cov=src \
-            --cov-report=html:coverage_report
+            --cov-report=html:reports/coverage_report \
+            --log-cli-level=INFO \
+            --capture=tee-sys
 
-      - name: Publicar relatório de testes
-        if: always()
+      # Step 8: Publicação dos artefatos
+      - name: Publicar relatórios e logs
+        if: always() # Executa mesmo se os testes falharem
         uses: actions/upload-artifact@v4
         with:
-          name: relatorio-testes
+          name: relatorios-e-logs
           path: |
-            report.html
-            coverage_report/
+            reports/
             screenshots/
             logs/
-          retention-days: 14 # Mantém os artefatos por 14 dias
+          retention-days: 14
+
+      # Step 9: Limpeza do ambiente (cleanup)
+      - name: Cleanup
+        if: always()
+        run: |
+          pkill Xvfb || true
+          sudo apt-get remove -y google-chrome-stable
+          sudo apt-get autoremove -y
