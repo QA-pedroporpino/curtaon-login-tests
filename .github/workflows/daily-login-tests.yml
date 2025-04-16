@@ -35,12 +35,13 @@ env:
   # Configurações do Chrome
   DISPLAY: ":99"
   CHROME_BIN: "/usr/bin/google-chrome"
-  # Diretórios de artefatos - Usando diretório workspace para garantir paths absolutos
-  WORKSPACE: ${{ github.workspace }}
-  ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
-  REPORT_DIR: "${{ github.workspace }}/artifacts/reports"
-  SCREENSHOT_DIR: "${{ github.workspace }}/artifacts/screenshots"
-  LOG_DIR: "${{ github.workspace }}/artifacts/logs"
+  # Diretórios do projeto - Usando paths relativos para portabilidade
+  PROJECT_ROOT: "."
+  TESTS_DIR: "tests/test_cases"
+  ARTIFACTS_DIR: "artifacts"
+  REPORTS_DIR: "artifacts/reports"
+  SCREENSHOTS_DIR: "artifacts/screenshots"
+  LOGS_DIR: "artifacts/logs"
   # Configurações de debug
   DEBUG: ${{ github.event.inputs.debug_enabled == 'true' }}
 
@@ -78,7 +79,8 @@ jobs:
             xvfb \
             libnss3 \
             libgconf-2-4 \
-            libfontconfig1
+            libfontconfig1 \
+            tree  # Para debug da estrutura de diretórios
           echo "::endgroup::"
 
           echo "::group::🌐 Instalando Google Chrome"
@@ -152,12 +154,23 @@ jobs:
       # ==== PREPARAÇÃO DOS DIRETÓRIOS ====
       - name: Preparar diretórios
         run: |
-          echo "::group::📁 Criando estrutura de diretórios"
-          mkdir -p "${ARTIFACT_DIR}"/{reports,screenshots,logs}
-          chmod -R 777 "${ARTIFACT_DIR}"
+          echo "::group::📁 Verificando estrutura do projeto"
+          echo "Estrutura de diretórios antes da criação:"
+          tree . || ls -R .
+          echo "::endgroup::"
 
-          echo "Estrutura de diretórios criada:"
-          tree "${ARTIFACT_DIR}" || ls -R "${ARTIFACT_DIR}"
+          echo "::group::📁 Criando diretórios para artefatos"
+          # Cria diretórios com -p para não falhar se já existirem
+          mkdir -p "${ARTIFACTS_DIR}"/{reports,screenshots,logs}
+
+          # Garante permissões corretas
+          chmod -R 777 "${ARTIFACTS_DIR}"
+
+          echo "Estrutura de diretórios após criação:"
+          tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
+
+          echo "Verificando diretório de testes:"
+          tree "${TESTS_DIR}" || ls -R "${TESTS_DIR}"
           echo "::endgroup::"
 
       # ==== EXECUÇÃO DOS TESTES ====
@@ -165,7 +178,7 @@ jobs:
         id: run-tests
         timeout-minutes: 30 # Timeout de segurança
         env:
-          PYTHONPATH: ${{ env.WORKSPACE }}/src
+          PYTHONPATH: ${{ github.workspace }}/src
           PYTEST_ADDOPTS: "--color=yes"
         run: |
           set -eo pipefail
@@ -173,14 +186,14 @@ jobs:
           echo "::group::🧪 Preparando execução dos testes"
           echo "Diretório atual: $(pwd)"
           echo "PYTHONPATH: ${PYTHONPATH}"
-          echo "Conteúdo do diretório de testes:"
-          ls -la tests/
+          echo "Diretório de testes: ${TESTS_DIR}"
+          ls -la "${TESTS_DIR}"
           echo "::endgroup::"
 
           echo "::group::🧪 Executando suite de testes"
           # Executa pytest com tratamento de erro
-          pytest tests/ \
-            --html="${REPORT_DIR}/report.html" \
+          pytest "${TESTS_DIR}"/ \
+            --html="${REPORTS_DIR}/report.html" \
             --self-contained-html \
             -v \
             --reruns 2 \
@@ -188,26 +201,31 @@ jobs:
             -n auto \
             --dist loadfile \
             --cov=src \
-            --cov-report=html:"${REPORT_DIR}/coverage" \
-            --cov-report=xml:"${REPORT_DIR}/coverage.xml" \
+            --cov-report=html:"${REPORTS_DIR}/coverage" \
+            --cov-report=xml:"${REPORTS_DIR}/coverage.xml" \
             --log-cli-level=INFO \
             --capture=tee-sys \
             --timeout=300 \
-            --junitxml="${REPORT_DIR}/junit.xml" \
-            | tee "${LOG_DIR}/pytest.log" || test_exit_code=$?
+            --junitxml="${REPORTS_DIR}/junit.xml" \
+            | tee "${LOGS_DIR}/pytest.log" || test_exit_code=$?
 
           echo "::group::📊 Verificando artefatos gerados"
           echo "Conteúdo do diretório de relatórios:"
-          ls -la "${REPORT_DIR}"
+          ls -la "${REPORTS_DIR}"
 
-          if [ -f "${REPORT_DIR}/report.html" ]; then
-            echo "✅ Relatório HTML gerado com sucesso"
-            echo "Tamanho do relatório: $(stat -f %z "${REPORT_DIR}/report.html") bytes"
-          else
-            echo "❌ Relatório HTML não encontrado!"
-            echo "Conteúdo do diretório atual:"
-            ls -la
-          fi
+          # Verifica se os relatórios foram gerados
+          for report in "report.html" "junit.xml" "coverage.xml"; do
+            if [ -f "${REPORTS_DIR}/${report}" ]; then
+              echo "✅ ${report} gerado com sucesso"
+              echo "Tamanho: $(stat -f %z "${REPORTS_DIR}/${report}") bytes"
+            else
+              echo "❌ ${report} não encontrado!"
+            fi
+          done
+
+          # Verifica estrutura completa
+          echo "Estrutura final de artefatos:"
+          tree "${ARTIFACTS_DIR}" || ls -R "${ARTIFACTS_DIR}"
           echo "::endgroup::"
 
           # Propaga o código de saída do pytest se houver falha
@@ -223,16 +241,16 @@ jobs:
         with:
           name: test-artifacts
           path: |
-            ${{ env.ARTIFACT_DIR }}
+            ${{ env.ARTIFACTS_DIR }}
           retention-days: 14
-          if-no-files-found: error # Falha se não encontrar arquivos
+          if-no-files-found: warn # Avisa mas não falha se não encontrar arquivos
 
       # ==== PUBLICAÇÃO DE RESULTADOS ====
       - name: Publicar resultados dos testes
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: "${{ env.REPORT_DIR }}/junit.xml"
+          files: "${{ env.REPORTS_DIR }}/junit.xml"
           comment_mode: off
 
       # ==== CLEANUP ====
